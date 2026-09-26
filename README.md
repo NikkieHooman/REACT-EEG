@@ -15,21 +15,21 @@ REACT-EEG/
 ├── README.md
 ├── main_source/
 │   ├── fresh/
-│   │   ├── models.py                 # Tokenizer, temporal readers, model factory
-│   │   ├── controls.py               # Forward/reverse readout configurations
-│   │   ├── data.py                   # Prepared-data loader and observation grids
-│   │   ├── bite.py                   # Adapter for the pinned BiTE baseline
-│   │   ├── setup.py                  # Study configuration and source freezing
-│   │   ├── run.py                    # Primary training and evaluation
-│   │   ├── smoke.py                  # GPU preflight
-│   │   ├── report.py                 # Primary results collection
-│   │   └── statistics_base.py        # Subject-level statistics
+│   │   ├── models.py                 
+│   │   ├── controls.py              
+│   │   ├── data.py                  
+│   │   ├── bite.py                   
+│   │   ├── setup.py                  
+│   │   ├── run.py                   
+│   │   ├── smoke.py                  
+│   │   ├── report.py                 
+│   │   └── statistics_base.py        
 │   ├── tests/
 │   ├── scripts/
 │   ├── docs/
-│   └── paper/                       # Legacy template used by the report generator
+│   └── paper/                      
 ├── anchor_source/
-│   ├── fresh/                       # Core modules and anchor-control extensions
+│   ├── fresh/                      
 │   ├── train_reverse_only_final.py
 │   ├── train_paired_random_trunc_final.py
 │   ├── reviewer_eval_controls.py
@@ -40,7 +40,7 @@ REACT-EEG/
 │   ├── fresh_primary_nauc.py
 │   ├── check_fresh_causality.py
 │   └── make_fresh_anytime_figure.py
-└── main_evidence/                    # Original provenance and selected summaries
+└── main_evidence/                    
 ```
 
 The commands below assume this layout. Both source directories contain a package named `fresh`; use the working directories shown rather than adding both packages to `PYTHONPATH` together. The `main_evidence/` records are not required to start a new study.

@@ -457,7 +457,7 @@ After matched random-duration training, the REACT-minus-No-reverse nAUC differen
 |---:|---:|---:|
 | +10.42 [6.44, 15.21] | +0.22 [−1.17, 1.61] | +24.96 [19.17, 30.93] |
 
-Values are percentage-point differences with 95% bootstrap intervals. These results use separately retrained random-duration models. Reverse-only can outperform fused REACT at earlier durations, especially on SD-SSVEP; the paper does not claim uniform superiority across models, datasets, or decision times.
+Values are percentage-point differences with 95% bootstrap intervals. These results use retrained random-duration models separately. Reverse-only can outperform fused REACT at earlier durations, especially on SD-SSVEP; the paper does not claim uniform superiority across models, datasets, or decision times.
 
 ## Testing
 
@@ -473,18 +473,3 @@ Run software tests in a working repository copy, not a frozen study directory, b
 
 The excluded legacy layout test writes to a fixed `/mnt/data` location. Software tests check implementation behavior; they do not establish reproduction of the reported benchmark scores.
 
-## Reproducibility Notes
-
-This source release includes the primary model and experiment runner plus the later control scripts. It does not include EEG data, pretrained checkpoints, the raw-data preparation pipeline, the LOSO runner, or the training workflow for the ten additional endpoint baselines in the manuscript. The BiTE clipping discrepancy is described in the training section.
-
-Causality is defined at the **prepared model input** with dropout disabled and stored BatchNorm statistics. It does not establish causal upstream preprocessing or acquisition-to-output timing. The reverse reader is recomputed for the available sequence; this is not a constant-cost recurrent streaming implementation or an adaptive stopping rule.
-
-The study plan records prior inspection of benchmark results. New fits should not be presented as evaluation on a newly untouched benchmark. Preserve run provenance and distinguish manuscript-reported numbers from newly generated results.
-
-## Acknowledgments
-
-The BiTE baseline uses the authors' [BiteEEG implementation](https://github.com/cindy-hong/BiteEEG), pinned to commit `924eb32241ba1a7c80dbc4ba097f8c979da17578`. Its source is retrieved separately during setup. Cite the associated REACT-EEG manuscript, the original datasets, and BiTE when using the corresponding contributions.
-
-## License
-
-No project-wide license is included in this source snapshot. Retain the existing notices and third-party attribution; third-party code and datasets remain subject to their respective terms.

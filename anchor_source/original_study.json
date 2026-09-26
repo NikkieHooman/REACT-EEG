@@ -1,0 +1,611 @@
+{
+  "bootstrap_seed": 170926,
+  "causality_atol": 0.0001,
+  "comparison_family": "READER minus Compact, FF and Compact-Mean: within-dataset endpoint and normalized curve; descriptive percentile intervals",
+  "data_roots": {
+    "2a": "/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2a/2a_pre",
+    "2b": "/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2b/2b_pre",
+    "ssvep": "/lustre/smuexa01/client/users/nikkieh/bibm_data/sd_ssvep/processed_kaggle_exact"
+  },
+  "datasets": {
+    "2a": {
+      "channels": 22,
+      "classes": 4,
+      "fs": 250,
+      "grid": [
+        250,
+        256,
+        288,
+        320,
+        352,
+        384,
+        416,
+        448,
+        480,
+        500,
+        512,
+        544,
+        576,
+        608,
+        640,
+        672,
+        704,
+        736,
+        750,
+        768,
+        800,
+        832,
+        864,
+        896,
+        928,
+        960,
+        992,
+        1000
+      ],
+      "pool": 32,
+      "samples": 1000,
+      "subjects": 9
+    },
+    "2b": {
+      "channels": 3,
+      "classes": 2,
+      "fs": 250,
+      "grid": [
+        250,
+        256,
+        288,
+        320,
+        352,
+        384,
+        416,
+        448,
+        480,
+        500,
+        512,
+        544,
+        576,
+        608,
+        640,
+        672,
+        704,
+        736,
+        750,
+        768,
+        800,
+        832,
+        864,
+        896,
+        928,
+        960,
+        992,
+        1000
+      ],
+      "pool": 32,
+      "samples": 1000,
+      "subjects": 9
+    },
+    "ssvep": {
+      "channels": 8,
+      "classes": 12,
+      "fs": 256,
+      "grid": [
+        64,
+        68,
+        72,
+        76,
+        80,
+        84,
+        88,
+        92,
+        96,
+        100,
+        104,
+        108,
+        112,
+        116,
+        120,
+        124,
+        128,
+        132,
+        136,
+        140,
+        144,
+        148,
+        152,
+        156,
+        160,
+        164,
+        168,
+        172,
+        176,
+        180,
+        184,
+        188,
+        192,
+        196,
+        200,
+        204,
+        208,
+        212,
+        216,
+        220,
+        224,
+        228,
+        232,
+        236,
+        240,
+        244,
+        248,
+        252,
+        256
+      ],
+      "pool": 4,
+      "samples": 256,
+      "subjects": 10
+    }
+  },
+  "description": "New manuscript-based refit, never historical-result reproduction",
+  "evidence": "real_fresh",
+  "excluded_legacy_analyses": [
+    "HGD",
+    "LOSO",
+    "deadline-specialists"
+  ],
+  "models": [
+    "compact",
+    "reader",
+    "ff",
+    "compact_mean",
+    "bite"
+  ],
+  "plan_hash": "244d41a6a2ebe4789cc7f1ce0ecb7af615eb354f912290f8f32846c617117eff",
+  "prior_test_exposure": "Original study results were previously inspected. This follow-up does not make the benchmark newly untouched.",
+  "recipe": {
+    "augmentation": "none",
+    "batch_size": 64,
+    "betas": [
+      0.9,
+      0.999
+    ],
+    "early_stopping": false,
+    "epochs": 600,
+    "eps": 1e-08,
+    "grad_clip": 5.0,
+    "label_smoothing": 0.1,
+    "lr": 0.002,
+    "maxnorm": "after_optimizer_step_for_four_core_models; upstream_BiTE_unchanged",
+    "prefix_weight": 0.0,
+    "save_every": 25,
+    "selection": "fixed epoch 600",
+    "weight_decay": 0.002
+  },
+  "resamples": 10000,
+  "schema_version": 1,
+  "seeds": [
+    2025,
+    2026,
+    2027
+  ],
+  "tasks": [
+    {
+      "dataset": "2a",
+      "seed": 2025,
+      "subject": 1
+    },
+    {
+      "dataset": "2a",
+      "seed": 2026,
+      "subject": 1
+    },
+    {
+      "dataset": "2a",
+      "seed": 2027,
+      "subject": 1
+    },
+    {
+      "dataset": "2a",
+      "seed": 2025,
+      "subject": 2
+    },
+    {
+      "dataset": "2a",
+      "seed": 2026,
+      "subject": 2
+    },
+    {
+      "dataset": "2a",
+      "seed": 2027,
+      "subject": 2
+    },
+    {
+      "dataset": "2a",
+      "seed": 2025,
+      "subject": 3
+    },
+    {
+      "dataset": "2a",
+      "seed": 2026,
+      "subject": 3
+    },
+    {
+      "dataset": "2a",
+      "seed": 2027,
+      "subject": 3
+    },
+    {
+      "dataset": "2a",
+      "seed": 2025,
+      "subject": 4
+    },
+    {
+      "dataset": "2a",
+      "seed": 2026,
+      "subject": 4
+    },
+    {
+      "dataset": "2a",
+      "seed": 2027,
+      "subject": 4
+    },
+    {
+      "dataset": "2a",
+      "seed": 2025,
+      "subject": 5
+    },
+    {
+      "dataset": "2a",
+      "seed": 2026,
+      "subject": 5
+    },
+    {
+      "dataset": "2a",
+      "seed": 2027,
+      "subject": 5
+    },
+    {
+      "dataset": "2a",
+      "seed": 2025,
+      "subject": 6
+    },
+    {
+      "dataset": "2a",
+      "seed": 2026,
+      "subject": 6
+    },
+    {
+      "dataset": "2a",
+      "seed": 2027,
+      "subject": 6
+    },
+    {
+      "dataset": "2a",
+      "seed": 2025,
+      "subject": 7
+    },
+    {
+      "dataset": "2a",
+      "seed": 2026,
+      "subject": 7
+    },
+    {
+      "dataset": "2a",
+      "seed": 2027,
+      "subject": 7
+    },
+    {
+      "dataset": "2a",
+      "seed": 2025,
+      "subject": 8
+    },
+    {
+      "dataset": "2a",
+      "seed": 2026,
+      "subject": 8
+    },
+    {
+      "dataset": "2a",
+      "seed": 2027,
+      "subject": 8
+    },
+    {
+      "dataset": "2a",
+      "seed": 2025,
+      "subject": 9
+    },
+    {
+      "dataset": "2a",
+      "seed": 2026,
+      "subject": 9
+    },
+    {
+      "dataset": "2a",
+      "seed": 2027,
+      "subject": 9
+    },
+    {
+      "dataset": "2b",
+      "seed": 2025,
+      "subject": 1
+    },
+    {
+      "dataset": "2b",
+      "seed": 2026,
+      "subject": 1
+    },
+    {
+      "dataset": "2b",
+      "seed": 2027,
+      "subject": 1
+    },
+    {
+      "dataset": "2b",
+      "seed": 2025,
+      "subject": 2
+    },
+    {
+      "dataset": "2b",
+      "seed": 2026,
+      "subject": 2
+    },
+    {
+      "dataset": "2b",
+      "seed": 2027,
+      "subject": 2
+    },
+    {
+      "dataset": "2b",
+      "seed": 2025,
+      "subject": 3
+    },
+    {
+      "dataset": "2b",
+      "seed": 2026,
+      "subject": 3
+    },
+    {
+      "dataset": "2b",
+      "seed": 2027,
+      "subject": 3
+    },
+    {
+      "dataset": "2b",
+      "seed": 2025,
+      "subject": 4
+    },
+    {
+      "dataset": "2b",
+      "seed": 2026,
+      "subject": 4
+    },
+    {
+      "dataset": "2b",
+      "seed": 2027,
+      "subject": 4
+    },
+    {
+      "dataset": "2b",
+      "seed": 2025,
+      "subject": 5
+    },
+    {
+      "dataset": "2b",
+      "seed": 2026,
+      "subject": 5
+    },
+    {
+      "dataset": "2b",
+      "seed": 2027,
+      "subject": 5
+    },
+    {
+      "dataset": "2b",
+      "seed": 2025,
+      "subject": 6
+    },
+    {
+      "dataset": "2b",
+      "seed": 2026,
+      "subject": 6
+    },
+    {
+      "dataset": "2b",
+      "seed": 2027,
+      "subject": 6
+    },
+    {
+      "dataset": "2b",
+      "seed": 2025,
+      "subject": 7
+    },
+    {
+      "dataset": "2b",
+      "seed": 2026,
+      "subject": 7
+    },
+    {
+      "dataset": "2b",
+      "seed": 2027,
+      "subject": 7
+    },
+    {
+      "dataset": "2b",
+      "seed": 2025,
+      "subject": 8
+    },
+    {
+      "dataset": "2b",
+      "seed": 2026,
+      "subject": 8
+    },
+    {
+      "dataset": "2b",
+      "seed": 2027,
+      "subject": 8
+    },
+    {
+      "dataset": "2b",
+      "seed": 2025,
+      "subject": 9
+    },
+    {
+      "dataset": "2b",
+      "seed": 2026,
+      "subject": 9
+    },
+    {
+      "dataset": "2b",
+      "seed": 2027,
+      "subject": 9
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2025,
+      "subject": 1
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2026,
+      "subject": 1
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2027,
+      "subject": 1
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2025,
+      "subject": 2
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2026,
+      "subject": 2
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2027,
+      "subject": 2
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2025,
+      "subject": 3
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2026,
+      "subject": 3
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2027,
+      "subject": 3
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2025,
+      "subject": 4
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2026,
+      "subject": 4
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2027,
+      "subject": 4
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2025,
+      "subject": 5
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2026,
+      "subject": 5
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2027,
+      "subject": 5
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2025,
+      "subject": 6
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2026,
+      "subject": 6
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2027,
+      "subject": 6
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2025,
+      "subject": 7
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2026,
+      "subject": 7
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2027,
+      "subject": 7
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2025,
+      "subject": 8
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2026,
+      "subject": 8
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2027,
+      "subject": 8
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2025,
+      "subject": 9
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2026,
+      "subject": 9
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2027,
+      "subject": 9
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2025,
+      "subject": 10
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2026,
+      "subject": 10
+    },
+    {
+      "dataset": "ssvep",
+      "seed": 2027,
+      "subject": 10
+    }
+  ]
+}

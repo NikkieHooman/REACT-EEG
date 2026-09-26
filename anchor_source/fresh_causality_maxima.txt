@@ -1,0 +1,21 @@
+
+=== 2A ===
+reader E_trunc= 5.960464477539063e-08 E_future= 0.0 positive_leak= 2181.822021484375
+compact E_trunc= 6.705522537231445e-08 E_future= 0.0 positive_leak= 2181.822021484375
+ff E_trunc= 4.470348358154297e-08 E_future= 0.0 positive_leak= 2181.822021484375
+compact_mean E_trunc= 2.384185791015625e-07 E_future= 0.0 positive_leak= 2181.822021484375
+DATASET MAX: E_trunc= 2.384185791015625e-07 E_future= 0.0 positive_leak= 2181.822021484375
+
+=== 2B ===
+reader E_trunc= 1.862645149230957e-08 E_future= 0.0 positive_leak= 2262.607666015625
+compact E_trunc= 2.9802322387695312e-08 E_future= 0.0 positive_leak= 2262.60791015625
+ff E_trunc= 1.4901161193847656e-08 E_future= 0.0 positive_leak= 2262.60791015625
+compact_mean E_trunc= 5.960464477539063e-08 E_future= 0.0 positive_leak= 2262.60791015625
+DATASET MAX: E_trunc= 5.960464477539063e-08 E_future= 0.0 positive_leak= 2262.60791015625
+
+=== SSVEP ===
+reader E_trunc= 8.940696716308594e-08 E_future= 0.0 positive_leak= 3202.740478515625
+compact E_trunc= 1.7881393432617188e-07 E_future= 0.0 positive_leak= 3202.740478515625
+ff E_trunc= 1.4901161193847656e-07 E_future= 0.0 positive_leak= 3202.740478515625
+compact_mean E_trunc= 2.384185791015625e-07 E_future= 0.0 positive_leak= 3202.740478515625
+DATASET MAX: E_trunc= 2.384185791015625e-07 E_future= 0.0 positive_leak= 3202.740478515625

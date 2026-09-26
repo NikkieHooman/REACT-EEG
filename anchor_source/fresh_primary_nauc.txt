@@ -1,0 +1,39 @@
+
+========================================
+2A
+========================================
+REACT        early= 69.316 endpoint= 85.057 nAUC= 80.119
+No reverse   early= 32.099 endpoint= 82.343 nAUC= 45.166
+Two forward  early= 31.263 endpoint= 83.796 nAUC= 45.922
+Fwd mean     early= 40.535 endpoint= 71.785 nAUC= 64.662
+
+Paired REACT minus control nAUC:
+REACT - No reverse : +34.95 [28.79, 40.20]
+REACT - Two forward: +34.20 [29.26, 38.49]
+REACT - Fwd mean   : +15.46 [11.29, 19.94]
+
+========================================
+2B
+========================================
+REACT        early= 74.307 endpoint= 86.204 nAUC= 83.595
+No reverse   early= 53.972 endpoint= 86.040 nAUC= 68.073
+Two forward  early= 55.331 endpoint= 86.114 nAUC= 65.345
+Fwd mean     early= 63.917 endpoint= 85.202 nAUC= 81.752
+
+Paired REACT minus control nAUC:
+REACT - No reverse : +15.52 [11.31, 20.44]
+REACT - Two forward: +18.25 [14.45, 21.86]
+REACT - Fwd mean   : +1.84 [0.51, 3.17]
+
+========================================
+SSVEP
+========================================
+REACT        early= 34.889 endpoint= 96.500 nAUC= 64.155
+No reverse   early= 11.611 endpoint= 93.500 nAUC= 20.032
+Two forward  early= 10.778 endpoint= 94.111 nAUC= 19.829
+Fwd mean     early= 27.056 endpoint= 65.500 nAUC= 51.712
+
+Paired REACT minus control nAUC:
+REACT - No reverse : +44.12 [32.00, 54.58]
+REACT - Two forward: +44.33 [32.29, 54.77]
+REACT - Fwd mean   : +12.44 [4.78, 20.10]

@@ -1,0 +1,14 @@
+{
+  "evidence": "local_software_validation_only",
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "torch": "2.10.0+cpu",
+  "numpy": "2.3.5",
+  "sklearn": "1.8.0",
+  "scipy": "1.17.0",
+  "pandas": "2.2.3",
+  "cuda_available": false,
+  "hpc_jobs_submitted_from_chat": false,
+  "actual_EEG_data_used": false,
+  "upstream_BiTE_executed_locally": false,
+  "tests_passed": 42
+}

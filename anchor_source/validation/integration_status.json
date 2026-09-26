@@ -1,0 +1,17 @@
+{
+  "actual_upstream_BiTE_tested": false,
+  "core_model_training_runs": 12,
+  "datasets": "synthetic arrays at all three configured input shapes",
+  "epochs_each": 2,
+  "evidence": "synthetic_software_test",
+  "gpu_used": false,
+  "held_role_opened_after_all_models_trained": true,
+  "new_core_models_tested": [
+    "compact",
+    "reader",
+    "ff",
+    "compact_mean"
+  ],
+  "paper_generated": false,
+  "resume_completed_group_no_weight_changes": true
+}

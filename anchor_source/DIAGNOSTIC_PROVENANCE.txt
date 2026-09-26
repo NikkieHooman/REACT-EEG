@@ -1,0 +1,12 @@
+Original study:
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij
+
+Original code snapshot:
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code
+
+Python:
+/users/nikkieh/bibm_env/bin/python
+
+Purpose:
+Anchor-vs-reversal diagnostic only.
+Existing paper runs are not modified.

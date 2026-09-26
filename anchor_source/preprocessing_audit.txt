@@ -1,0 +1,412 @@
+===== FROZEN PROTOCOL =====
+# Frozen prospective follow-up specification
+
+This is a follow-up chosen after seeing the old study's results, not retrospective
+preregistration. It is a newly implemented manuscript formulation. New parameters,
+initialization, data order and constraint timing must not be represented as proven
+historical implementation details.
+
+## Models and exact differences
+
+The four core models share tokenizer, first TCN, positions and classifier, all
+constructed in the same order from seed 2025, 2026 or 2027. The extra reader is
+constructed from an isolated CPU stream at seed 918273. Shared initial state hashes
+and independent minibatch-order hashes are compared within subject/seed. Identical
+dropout masks across different architectures are not claimed.
+
+Tokenizer: three zero-left-padded, stride-one, bias-free Conv2d branches of 16
+maps each and temporal widths 16/32/64; BatchNorm with 48 features; grouped spatial Conv2d
+48-to-96 with groups48 and width equal to channel count; BatchNorm with 96 features; LeakyReLU with slope 0.2.
+No radial/envelope path, analytic front end, content gate or per-subject test-time
+adaptation is included. Pool size32 for MI,4 for SSVEP. Nonoverlapping sum/count
+pooling uses only real samples in a final partial token; it does not overlap a
+full-width window or count right-padded zeros. Dropout 0.3, biased Linear 96-to-64,
+and learned position vectors N(0,.02). The table contains 32 MI or64 SSVEP positions.
+
+Reader: three residual blocks, two bias-free depthwise Conv1d per block, kernel 6,
+dilations 1/2/4. Each convolution is followed by affine BatchNorm, LeakyReLU with slope 0.2,
+and dropout 0.3. BatchNorm epsilon 1e-5, momentum 0.1, running statistics enabled. First
+convolution uses Xavier uniform; second uses zero weights. BatchNorm starts with
+unit scale, zero bias/running mean,unit running variance. Residual addition has no
+subsequent activation, giving identity initialization. Evaluation disables dropout
+and fixes BN statistics. The receptive field is71 tokens. This is bounded-trial,
+not unlimited streaming inference.
+
+Compact reads the final forward state. Compact--Mean reads the equal-token mean
+of all forward states, including the partial last token. READER reads original
+and reversed positioned tokens, combining last states with a learned 64-feature
+sigmoid gate initialized at 0.5. FF supplies original-order tokens to both
+independently parameterized readers. FF changes order and resulting anchor
+jointly, so it is not a perfect isolation of direction from anchor.
+
+The biased classifier is64-to-K. Spatial-filter row norms are projected to <=1,
+classifier-row norms to <=.25, once before training and after each optimizer
+step. Core models do not modify weights during inference. Core parameter counts:
+
+| Dataset | Compact / Mean | READER / FF |
+|---|---:|---:|
+| 2A | 15,780 | 18,916 |
+| 2B | 13,826 | 16,962 |
+| SSVEP | 17,004 | 20,140 |
+
+The increment is 3,136. These are NEW instantiated counts, not the native legacy
+17,828/21,316 counts. The position-table allocation is an explicit new choice.
+
+BiTE uses unchanged pinned upstream source, imported separately. The adapter and
+STFT follow the supplied BIBM_V2 adapter calling convention: F1=16,D=4,kernel 64,
+pool 32, nominal4--40 Hz for MI;kernel 32,pool 8,8--64 Hz for SSVEP. STFT uses Hann window,
+FFT/window length k, hop1,centerTrue,constantpadding,onesidedmagnitude; frequency
+indices floor(low*k/fs) through floor(high*k/fs),inclusive. Report this actual bin
+rule rather than implying exact band-edge frequencies. Input is B,C,T, spectrum
+B,F,frames,C; logits are the first upstream return element. Endpoint only is
+assumed; unsupported BiTE prefix lengths are not guessed. BiTE's native constraints
+and internal modules are unchanged. Source hashes are verified every task.
+
+## Data and fitting roles
+
+The declared files use NPZ data[B,C,T], label[B] zero-based integers. 2A uses T/E
+sessions. 2B concatenates01T/02T/03T for training and04E/05E for test. SSVEP preserves
+its existing train/test files. MI preparation can store 1001 samples: loader keeps
+the first 1000 explicitly. SSVEP must contain 256 samples. No resampling/new reference/filter
+or new train/test split is performed.
+
+Load training arrays first. Fit a separate scikit-learn StandardScaler per
+subject on Xtrain.reshape(N,-1),float64; retain mean/scale/variance indexed by
+channel and within-trial sample. Cast normalized data tofloat32. Prefix input
+selects the corresponding scaler coordinates. No test-fitted normalization,
+whitening or trial-specific normalization is used. Exact duplicates are rejected
+across prepared train/test rows; lack of duplicates is not proof of original
+block independence. File and array checksums and file+row IDs are saved. Those
+IDs are not falsely labelled original raw trial IDs.
+
+Each subject/seed task finishes all five model trainings and saves final
+checkpoints before opening its held data. The preflight reads training data
+only. File existence checks at setup do not read held arrays.
+
+The supplied legacy preparation source uses session-level channel minimum-value
+replacement for MI and, for SSVEP, start=int(.135*256)=34 before taking256samples.
+Whether every existing NPZ was actually created by that version is not established
+by its filename/shape. Preserve this as an author provenance check. Session-wide
+raw cleaning need not be causal within a stream. The fresh study claims only a
+prepared-input model boundary. Observation times are relative to the prepared
+crop, not necessarily stimulus/cue onset or acquisition latency.
+
+## Training
+
+All 420 models use600 epochs,Adam lr.002,weight_decay.002,betas(.9,.999),eps1e-8,
+batch64,labelsmoothing.1,L2globalgradient clipping5,cosineLRtozero with epoch-end
+scheduler step. Incomplete last minibatches are retained. No augmentation,
+validation-based selection, prefix supervision, early stopping or per-epoch held
+accuracy monitoring. Model construction seed=k; training RNG seed=k+10000.
+Minibatch generator is separateCPU seed=k+20000+epoch. These explicit conventions
+need not match historical samplers. FP32 withTF32disabled,deterministicalgorithms
+required. A backend error is not silently changed to nondeterministic execution.
+
+Every 25 epochs the resumable checkpoint includes optimizer,scheduler,random states,
+recipe/source/data signatures and history. Final weights are round-tripped and
+compared with saved training-input logits before held evaluation. A fresh fit
+is not evidence that old results reproduced.
+
+## Outcomes
+
+All four core models are evaluated on one checkpoint each at identical inputs.
+MI grid: 256..992 by 32 plus 250, 500, 750, 1000 (28 points, 1--4 s). SSVEP grid: 64..256 by 4
+(49 points, 0.25--1 s). No seed ensembling: accuracy first, then seeds within subject.
+Each prediction record includes logits, labels, IDs and exact sample counts.
+
+Primary comparison: 2A READER-minus-Compact normalized trapezoidal area over 1--4 s.
+Secondary: endpoint and curve area versus FF/Mean and other datasets. Accuracy and
+curve area are summarized per subject. Paired percentile intervals use 10,000
+subject bootstrap samples, seed 170926, retaining the same sampled subject indices
+throughout each paired curve. These intervals are conditional on the observed
+trained models; they are pointwise rather than simultaneous, unadjusted descriptive intervals.
+No significance stars or p-values are generated by default. Display all fixed
+contrasts,including null or negative differences. Do not change intervals/grids
+because a result is unfavorable.
+
+## Causality and interpretation
+
+Test every trained core model and a nondegenerate in-memory temporal-weight copy on
+4 label-independent prepared examples and4 synthetic inputs. MI boundaries:
+32,64,128,250,256,500,512,750,768,992,1000. SSVEP boundaries:
+4,8,64,65,127,128,192,256. Compare independent full-input sample-feature routing
+with direct truncated inference; check repeated calls, batch composition, unchanged
+state and future suffix replacement. Trace second-reader token counts. Usea predeclared 1e-4
+absolute error. The endpoint future test is not applicable. A deliberately injected
+unobserved-sample dependency must be detected. Record errors and failed checks.
+Nondegenerate copies randomize only TCN Conv1d and reset TCN BatchNorm; original files stay unchanged.
+
+READER diagnostics report gate values, branch magnitudes, weighted magnitudes, cosine,
+context perturbations and post-hoc shared-head branch accuracies. These are not trained
+baselines or causal explanations of physiological mechanisms.
+
+## Timing
+
+Subject 1, seed 2025 per dataset, all 5 models, batch size 1, 10 warm-ups and 50 synchronized repetitions.
+Measure first/last requested prefixes; core models also use naive and reused-feature curves.
+BiTE STFT is included. Normalization, file I/O, CPU/GPU transfer and acquisition are excluded. Devices
+recorded per run; do not pool different hardware. Frozen statistics and all within-dataset models
+for thatcell are timed on the same allocation. No latency or accuracy win is guaranteed.
+
+## Exclusions and publication
+
+Legacy HGD, LOSO and deadline specialists are excluded rather than relabelled. The
+paper remains focused on within-subject endpoint-trained prefix representations.
+The collector requires all 420 model results and all core causality checks, verifies
+predictions and writes actual numbers. It does not infer authors or raw data provenance.
+A complete compiled paper still requires author, reference, venue and visual review.
+
+===== THIRD-PARTY BITE FILTERING =====
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/third_party/BiteEEG/get_data.py:136:            iir_params = dict(order=6, ftype='butter')
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/third_party/BiteEEG/get_data.py:225:            iir_params = dict(order=6, ftype='butter')
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/third_party/BiteEEG/get_data.py:391:            iir_params = dict(order=4, ftype='butter')
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/third_party/BiteEEG/train.py:93:    # Apply frequency cutoff if requested (4-40Hz range)
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/third_party/BiteEEG/config.yaml:121:    delay: 0.135
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/third_party/BiteEEG/config.yaml:196:    delay: 0.135
+
+===== LOCAL PREPARATION CODE =====
+/users/nikkieh/bibm/audit/02_frontend_information_cost.py:159:        b, a = sps.butter(4, [lo / (fs / 2), hi / (fs / 2)], btype="band")
+/users/nikkieh/bibm/audit/02_frontend_information_cost.py:160:        filtered = sps.filtfilt(b, a, x, axis=-1)
+/users/nikkieh/bibm/audit/01_data_audit.py:29:        "root": "data/bci_iv_2a/raw/2a_pre",
+/users/nikkieh/bibm/audit/01_data_audit.py:36:        "root": "data/bci_iv_2b/raw/2b_pre",
+/users/nikkieh/bibm/audit/01_data_audit.py:67:        "root": "data/sd_ssvep/processed_kaggle_exact",
+/users/nikkieh/bibm/audit/01_data_audit.py:74:        "root": "data/bci_iv_2a/raw/2a_pre",
+/users/nikkieh/bibm/audit/05_ts_fm_representation_screen.py:48:        b, a = sps.butter(4, [lo / (fs / 2), hi / (fs / 2)], btype="band")
+/users/nikkieh/bibm/audit/05_ts_fm_representation_screen.py:49:        out.append(np.log(sps.filtfilt(b, a, x, axis=-1).var(axis=-1) + 1e-12))
+/users/nikkieh/bibm/audit/129_finalize_phase_ar_v35_forensic.sh:8:DATA=/work/mxb190076/BIBM2026/data/bci_iv_2a/raw/2a_pre
+/users/nikkieh/bibm/audit/14_unified_fm_input_signal_audit.py:114:    parser.add_argument("--data-root", default="../data/bci_iv_2a/raw/2a_pre")
+/users/nikkieh/bibm/audit/180_causal_power_graph_transfer_probe.py:85:        carrier = AUDIT.causal_bandpass(value, sampling_rate, low, high)
+/users/nikkieh/bibm/audit/183_feature_transfer_scan.py:52:def bandpass_bank(x, fs):
+/users/nikkieh/bibm/audit/183_feature_transfer_scan.py:56:        b, a = sp_signal.butter(4, [low / (fs / 2), high / (fs / 2)], btype="band")
+/users/nikkieh/bibm/audit/183_feature_transfer_scan.py:57:        out.append(sp_signal.filtfilt(b, a, x, axis=-1))
+/users/nikkieh/bibm/audit/183_feature_transfer_scan.py:193:    parser.add_argument("--data-root", default="/work/mxb190076/BIBM2026/data/bci_iv_2a/raw/2a_pre")
+/users/nikkieh/bibm/audit/183_feature_transfer_scan.py:212:            key: (bandpass_bank(a, args.fs), bandpass_bank(b, args.fs))
+/users/nikkieh/bibm/audit/204_summarize_v67_paired_epoch_gate.py:2:"""Summarize coordinate-addressed butterfly v67-v62 gates."""
+/users/nikkieh/bibm/audit/204_summarize_v67_paired_epoch_gate.py:46:        "v64 sufficient-coordinate", "v67 coordinate-addressed butterfly"
+/users/nikkieh/bibm/audit/204_summarize_v67_paired_epoch_gate.py:60:    summary["candidate"] = "v67_coordinate_addressed_butterfly"
+/users/nikkieh/bibm/audit/24_eegpt_block8_within_subject.py:70:        sos = signal.butter(4, cutoff, btype="lowpass", fs=fs, output="sos")
+/users/nikkieh/bibm/audit/24_eegpt_block8_within_subject.py:71:        return signal.sosfilt(sos, np.asarray(values, dtype=np.float64), axis=-1)
+/users/nikkieh/bibm/audit/250_beta_burst_probe.py:35:from scipy.signal import butter, lfilter, hilbert
+/users/nikkieh/bibm/audit/250_beta_burst_probe.py:49:    """Causal band-pass envelope. lfilter is one-sided; no future is read."""
+/users/nikkieh/bibm/audit/250_beta_burst_probe.py:50:    b, a = butter(4, [low / (RATE / 2), high / (RATE / 2)], btype="band")
+/users/nikkieh/bibm/audit/250_beta_burst_probe.py:51:    filtered = lfilter(b, a, x, axis=-1)
+/users/nikkieh/bibm/audit/270_neurophysiological_moment_route_probe.py:39:from scipy.signal import firwin, lfilter, remez
+/users/nikkieh/bibm/audit/270_neurophysiological_moment_route_probe.py:73:    taps = firwin(FIR_ORDER + 1, min(high / (fs / 2.0), 0.98))
+/users/nikkieh/bibm/audit/270_neurophysiological_moment_route_probe.py:74:    return lfilter(taps, [1.0], value, axis=-1)
+/users/nikkieh/bibm/audit/270_neurophysiological_moment_route_probe.py:77:def causal_bandpass(value: np.ndarray, fs: float, low: float, high: float):
+/users/nikkieh/bibm/audit/270_neurophysiological_moment_route_probe.py:82:    taps = firwin(
+/users/nikkieh/bibm/audit/270_neurophysiological_moment_route_probe.py:85:    return lfilter(taps, [1.0], value, axis=-1)
+/users/nikkieh/bibm/audit/270_neurophysiological_moment_route_probe.py:90:    imaginary = lfilter(taps, [1.0], value, axis=-1)
+/users/nikkieh/bibm/audit/270_neurophysiological_moment_route_probe.py:111:        carrier = causal_bandpass(value, fs, low, high)
+/users/nikkieh/bibm/audit/290_ea_unit_floor_identity_audit.py:59:        "2a": args.data_root / "bci_iv_2a/raw/2a_pre",
+/users/nikkieh/bibm/audit/290_ea_unit_floor_identity_audit.py:60:        "2b": args.data_root / "bci_iv_2b/raw/2b_pre",
+/users/nikkieh/bibm/audit/292_causal_innovation_conductance_microaudit.py:35:        raw, labels = load_2a_train(root / "bci_iv_2a/raw/2a_pre", subject)
+/users/nikkieh/bibm/audit/292_causal_innovation_conductance_microaudit.py:40:            root / "bci_iv_2b/raw/2b_pre", subject, False
+/users/nikkieh/bibm/audit/292_causal_innovation_conductance_microaudit.py:46:        else root / "sd_ssvep/processed_kaggle_exact"
+/users/nikkieh/bibm/audit/298_replay_cicg_v103_source_safe_graph.py:65:        "2a": data_parent / "bci_iv_2a/raw/2a_pre",
+/users/nikkieh/bibm/audit/298_replay_cicg_v103_source_safe_graph.py:66:        "2b": data_parent / "bci_iv_2b/raw/2b_pre",
+/users/nikkieh/bibm/audit/298_replay_cicg_v103_source_safe_graph.py:68:        "ssvep": data_parent / "sd_ssvep/processed_kaggle_exact",
+/users/nikkieh/bibm/audit/43_spectral_innovation_transfer.py:67:def bandpass(x, low, high, fs=FS):
+/users/nikkieh/bibm/audit/43_spectral_innovation_transfer.py:187:            train_band = bandpass(train_x, low, high)
+/users/nikkieh/bibm/audit/43_spectral_innovation_transfer.py:188:            held_band = bandpass(held_x, low, high)
+/users/nikkieh/bibm/audit/443_deployed_route_norm_verification.py:19:ROOT = Path("/work/mxb190076/BIBM2026/data/bci_iv_2a/raw/2a_pre")
+/users/nikkieh/bibm/audit/444_frozen_scale_control_dropin.py:26:ROOT = Path("/work/mxb190076/BIBM2026/data/bci_iv_2a/raw/2a_pre")
+/users/nikkieh/bibm/audit/448_route_combination_ceiling.py:17:CELLS = [("2a",2,"hard","bci_iv_2a/raw/2a_pre"), ("2a",3,"easy","bci_iv_2a/raw/2a_pre"),
+/users/nikkieh/bibm/audit/448_route_combination_ceiling.py:18:         ("2b",2,"hard","bci_iv_2b/raw/2b_pre"), ("2b",4,"easy","bci_iv_2b/raw/2b_pre"),
+/users/nikkieh/bibm/audit/450_agreement_rule_frozen_fit.py:18:CELLS = [("2a",2,"hard","bci_iv_2a/raw/2a_pre"), ("2a",3,"easy","bci_iv_2a/raw/2a_pre"),
+/users/nikkieh/bibm/audit/450_agreement_rule_frozen_fit.py:19:         ("2b",2,"hard","bci_iv_2b/raw/2b_pre"),
+/users/nikkieh/bibm/audit/66_coherency_prototype_probe.py:290:        default="/work/mxb190076/BIBM2026/data/bci_iv_2a/raw/2a_pre")
+/users/nikkieh/bibm/audit/67_expert_complementarity.py:203:        default="/work/mxb190076/BIBM2026/data/bci_iv_2a/raw/2a_pre")
+/users/nikkieh/bibm/audit/70_unified_bite_protocol.py:19:    is_filter:  false    every dataset -> no bandpass
+/users/nikkieh/bibm/audit/90_statistic_pooling_transfer_audit.py:29:from scipy.signal import firwin, lfilter, remez
+/users/nikkieh/bibm/audit/90_statistic_pooling_transfer_audit.py:65:def causal_bandpass(x, fs, low, high):
+/users/nikkieh/bibm/audit/90_statistic_pooling_transfer_audit.py:66:    """Strictly causal FIR band-pass; no filtfilt, no future taps."""
+/users/nikkieh/bibm/audit/90_statistic_pooling_transfer_audit.py:71:    taps = firwin(FIR_ORDER + 1, [low / nyq, high / nyq], pass_zero=False)
+/users/nikkieh/bibm/audit/90_statistic_pooling_transfer_audit.py:72:    return lfilter(taps, [1.0], x, axis=-1)
+/users/nikkieh/bibm/audit/90_statistic_pooling_transfer_audit.py:81:    q = lfilter(taps, [1.0], x, axis=-1)
+/users/nikkieh/bibm/audit/90_statistic_pooling_transfer_audit.py:193:        c0 = causal_bandpass(x, fs, lo, hi)
+/users/nikkieh/bibm/audit/90_statistic_pooling_transfer_audit.py:242:        ar_by_band.append(fit_ar(causal_bandpass(xtr, args.fs, lo, hi)))
+/users/nikkieh/bibm/audit/94_ssvep_source_pretrain_diagnostic.py:11:preprocessing is the repository-exact one (delay 0.135 s, 256 samples at
+/users/nikkieh/bibm/audit/97_robust_scale_probe.py:44:causal_bandpass = _ns["causal_bandpass"]
+/users/nikkieh/bibm/audit/97_robust_scale_probe.py:76:        c0 = causal_bandpass(x, fs, low, high)
+/users/nikkieh/bibm/audit/class_prior_ablation.py:57:        "2a": run("2a", ROOT / "data/bci_iv_2a/raw/2a_pre"),
+/users/nikkieh/bibm/audit/class_prior_ablation.py:58:        "2b": run("2b", ROOT / "data/bci_iv_2b/raw/2b_pre"),
+/users/nikkieh/bibm/audit/class_prior_source_select.py:71:        "2a": run("2a", ROOT / "data/bci_iv_2a/raw/2a_pre"),
+/users/nikkieh/bibm/audit/class_prior_source_select.py:72:        "2b": run("2b", ROOT / "data/bci_iv_2b/raw/2b_pre"),
+/users/nikkieh/bibm/audit/confidence_gate_ablation.py:69:        "2a": {str(p): run("2a", ROOT / "data/bci_iv_2a/raw/2a_pre", p) for p in (1, 16)},
+/users/nikkieh/bibm/audit/confidence_gate_ablation.py:70:        "2b": {str(p): run("2b", ROOT / "data/bci_iv_2b/raw/2b_pre", p) for p in (1, 16)},
+/users/nikkieh/bibm/audit/entropy_affine_ablation.py:62:        "2a": run("2a", ROOT / "data/bci_iv_2a/raw/2a_pre"),
+/users/nikkieh/bibm/audit/entropy_affine_ablation.py:63:        "2b": run("2b", ROOT / "data/bci_iv_2b/raw/2b_pre"),
+/users/nikkieh/bibm/audit/input_covariance_ablation.py:64:        "2a": run("2a", ROOT / "data/bci_iv_2a/raw/2a_pre"),
+/users/nikkieh/bibm/audit/input_covariance_ablation.py:65:        "2b": run("2b", ROOT / "data/bci_iv_2b/raw/2b_pre"),
+/users/nikkieh/bibm/audit/pastvar_layer_ablation.py:69:        "2a": run("2a", ROOT / "data/bci_iv_2a/raw/2a_pre"),
+/users/nikkieh/bibm/audit/pastvar_layer_ablation.py:70:        "2b": run("2b", ROOT / "data/bci_iv_2b/raw/2b_pre"),
+/users/nikkieh/bibm/audit/pastvar_mean_ablation.py:57:        "2a": run("2a", ROOT / "data/bci_iv_2a/raw/2a_pre"),
+/users/nikkieh/bibm/audit/pastvar_mean_ablation.py:58:        "2b": run("2b", ROOT / "data/bci_iv_2b/raw/2b_pre"),
+/users/nikkieh/bibm/audit/pastvar_prior_sweep.py:42:           '2a': run('2a', ROOT / 'data/bci_iv_2a/raw/2a_pre', priors),
+/users/nikkieh/bibm/audit/pastvar_prior_sweep.py:43:           '2b': run('2b', ROOT / 'data/bci_iv_2b/raw/2b_pre', priors)}
+/users/nikkieh/bibm/audit/pastvar_source_select.py:86:        "2a": ROOT / "data/bci_iv_2a/raw/2a_pre",
+/users/nikkieh/bibm/audit/pastvar_source_select.py:87:        "2b": ROOT / "data/bci_iv_2b/raw/2b_pre",
+/users/nikkieh/bibm/audit/temporal_logit_pool_ablation.py:57:        "2a": {str(p): run("2a", ROOT / "data/bci_iv_2a/raw/2a_pre", p) for p in (1, 16)},
+/users/nikkieh/bibm/audit/temporal_logit_pool_ablation.py:58:        "2b": {str(p): run("2b", ROOT / "data/bci_iv_2b/raw/2b_pre", p) for p in (1, 16)},
+/users/nikkieh/bibm/audit/temporal_pool_source_select.py:68:        "2a": run("2a", ROOT / "data/bci_iv_2a/raw/2a_pre"),
+/users/nikkieh/bibm/audit/temporal_pool_source_select.py:69:        "2b": run("2b", ROOT / "data/bci_iv_2b/raw/2b_pre"),
+/users/nikkieh/bibm/audit/wide_adaptation_screen.py:52:        "2a": run("2a", ROOT / "data/bci_iv_2a/raw/2a_pre"),
+/users/nikkieh/bibm/audit/wide_adaptation_screen.py:53:        "2b": run("2b", ROOT / "data/bci_iv_2b/raw/2b_pre"),
+/users/nikkieh/bibm/audit/wide_seed2026_2b_source_select.py:21:DATA = ROOT / "data/bci_iv_2b/raw/2b_pre"
+/users/nikkieh/bibm/audit/wide_source_select.py:63:        "2a": run("2a", ROOT / "data/bci_iv_2a/raw/2a_pre"),
+/users/nikkieh/bibm/audit/wide_source_select.py:64:        "2b": run("2b", ROOT / "data/bci_iv_2b/raw/2b_pre"),
+/users/nikkieh/bibm/cba_online/cross_spectral_expert.py:72:    """Causal complex bandpass FIR bank, one filter per frequency.
+/users/nikkieh/bibm/cba_online/cross_spectral_expert.py:84:    bandpass h is applied. Equivalently, this is the recursion
+/users/nikkieh/bibm/cba_online/cross_spectral_expert.py:232:            # of the raw bandpass output w_t (which still oscillates at f) cancels
+/users/nikkieh/bibm/cba_online/data.py:78:    return signal.lfilter(b, a, np.asarray(x, dtype=np.float64), axis=-1)
+/users/nikkieh/bibm/cba_online/fm_signal_interface.py:12:    sos = signal.butter(
+/users/nikkieh/bibm/cba_online/fm_signal_interface.py:16:    return signal.sosfilt(sos, x.astype(np.float64), axis=-1).astype(x.dtype)
+/users/nikkieh/bibm/cba_online/model_orientation_dynamics_coupling.py:902:    two parameter-matched C->C/groups=C/4 butterflies: the first mixes blocks
+/users/nikkieh/bibm/cba_online/model_orientation_dynamics_coupling.py:919:        self.butterfly_groups = self.route_width
+/users/nikkieh/bibm/cba_online/model_orientation_dynamics_coupling.py:922:            groups=self.butterfly_groups, bias=False,
+/users/nikkieh/bibm/cba_online/model_orientation_dynamics_coupling.py:926:            groups=self.butterfly_groups, bias=False,
+/users/nikkieh/bibm/cba_online/model_orientation_dynamics_coupling.py:988:            "butterfly_groups": self.butterfly_groups,
+/users/nikkieh/bibm/cba_online/model_orientation_dynamics_coupling.py:1018:                 coordinate_addressed_butterfly=False,
+/users/nikkieh/bibm/cba_online/model_orientation_dynamics_coupling.py:1037:            coordinate_addressed_butterfly, orthonormal_input_coupling,
+/users/nikkieh/bibm/cba_online/model_orientation_dynamics_coupling.py:1069:            if coordinate_addressed_butterfly
+/users/nikkieh/bibm/cba_online/model_orientation_dynamics_coupling.py:1522:    # parameter-matched sparse butterfly for within-route and cross-coordinate
+/users/nikkieh/bibm/cba_online/model_orientation_dynamics_coupling.py:1524:    "coordinate_addressed_butterfly_v67_wide": dict(
+/users/nikkieh/bibm/cba_online/model_orientation_dynamics_coupling.py:1526:        coordinate_addressed_butterfly=True,
+/users/nikkieh/bibm/cba_online/model_orientation_dynamics_coupling.py:1528:    "coordinate_addressed_butterfly_v67_plain_pool4_wide": dict(
+/users/nikkieh/bibm/cba_online/model_orientation_dynamics_coupling.py:1531:        coordinate_addressed_butterfly=True,
+/users/nikkieh/bibm/cba_online/registry.py:352:        "coordinate_addressed_butterfly_v67",
+/users/nikkieh/bibm/cba_online/registry.py:581:    "coordinate_addressed_butterfly_v67",
+/users/nikkieh/bibm/docs/freq_cross_forensic_20260810.md:127:| S6 | 51.7% | 0.049 | 0.0110 | 0.135 | 0.016 | 0.71 / 2.28 |
+/users/nikkieh/bibm/docs/notch_forensic_20260810.md:13:Applying a zero-state causal 50-Hz IIR notch (`scipy.signal.lfilter`, Q=30)
+/users/nikkieh/bibm/docs/ssvep_integration_20260810.md:47:kept separately in `processed_kaggle_exact`; the causal frequency experiment
+/users/nikkieh/bibm/notes/COORDINATE_ADDRESSED_BUTTERFLY_V67_HYPOTHESIS_20260826.md:1:# v67 hypothesis: coordinate-addressed expert butterfly
+/users/nikkieh/bibm/notes/COORDINATE_ADDRESSED_BUTTERFLY_V67_HYPOTHESIS_20260826.md:48:map into a two-axis butterfly:
+/users/nikkieh/bibm/notes/COORDINATE_ADDRESSED_BUTTERFLY_V67_HYPOTHESIS_20260826.md:64:exact v62 `4C -> C, groups=8` operator (2048 parameters); the two butterfly maps
+/users/nikkieh/bibm/notes/COORDINATE_ADDRESSED_BUTTERFLY_V67_HYPOTHESIS_20260826.md:130:the endpoint and across prefixes. The butterfly maps are live, finite, and
+/users/nikkieh/bibm/notes/EARLY_FREQUENCY_ARCHITECTURE_PRIMARY_AUDIT_20260826.md:18:IIR filters (4--16 and 16--40 Hz), applied with causal `scipy.signal.lfilter`.
+/users/nikkieh/bibm/notes/FORECAST_COMPENSATED_PHASE_V35_HYPOTHESIS_20260824.md:52:bandpass, AR order 30, and 64 forecast samples at 500 Hz. At our 250 Hz carrier
+/users/nikkieh/bibm/notes/FORECAST_COMPENSATED_PHASE_V35_HYPOTHESIS_20260824.md:63:forecast, applies a two-pass bandpass to the extended signal, then takes the
+/users/nikkieh/bibm/notes/PHYSICAL_SUPPORT_PERSISTENT_RESIDUAL_FIBER_V139_STAGE_A_RESULT_20260830.md:45:- down factor: **0.1356**;
+/users/nikkieh/bibm/notes/V42_FORENSIC_PRIMARY_SOURCE_LEADS_20260824.md:109:- preprocessing uses SciPy `filtfilt`, and both encoder convolutions use
+/users/nikkieh/bibm/scripts/data_prep/prepare_sd_ssvep.py:11:def prepare(src: Path, dst: Path, delay: float = 0.135, fs: int = 256, time_points: int = 256):
+/users/nikkieh/bibm/scripts/data_prep/prepare_sd_ssvep.py:30:    ap.add_argument("--output", type=Path, default=Path("data/sd_ssvep/processed_kaggle_exact"))
+/users/nikkieh/bibm/scripts/data_prep/smu_fetch_prepare_ssvep.sh:10:OUTPUT="$BASE/processed_kaggle_exact"
+/users/nikkieh/bibm/scripts/data_prep/smu_fetch_prepare_bci2b.sh:7:mkdir -p "$BASE"/{downloads,raw,labels,2b_pre}
+/users/nikkieh/bibm/scripts/data_prep/smu_fetch_prepare_bci2b.sh:26:  --output "$BASE/2b_pre"
+/users/nikkieh/bibm/scripts/data_prep/smu_fetch_prepare_bci2b.sh:27:"$PYTHON" tools/check_data.py --dataset 2b --data-root "$BASE/2b_pre"
+/users/nikkieh/bibm/slurm/diag_dualpath.py:15:DATA = Path("/work/mxb190076/BIBM2026/data/bci_iv_2b/raw/2b_pre")
+/users/nikkieh/bibm/slurm/fm_biot_probe.py:144:        "2a": ROOT / "data/bci_iv_2a/raw/2a_pre",
+/users/nikkieh/bibm/slurm/fm_biot_probe.py:145:        "2b": ROOT / "data/bci_iv_2b/raw/2b_pre",
+/users/nikkieh/bibm/slurm/fm_crossparadigm.py:116:        tr=np.load(ROOT/f"data/sd_ssvep/processed_kaggle_exact/S{s:02d}_train.npz"); te=np.load(ROOT/f"data/sd_ssvep/processed_kaggle_exact/S{s:02d}_test.npz")
+/users/nikkieh/bibm/slurm/fm_mirepnet_probe.py:120:        tx, ty = load_2a_train(str(ROOT / "data/bci_iv_2a/raw/2a_pre"), target)
+/users/nikkieh/bibm/slurm/fm_mirepnet_probe.py:121:        held = np.load(ROOT / "data/bci_iv_2a/raw/2a_pre" / f"A0{target}E.npz")
+/users/nikkieh/bibm/slurm/fm_mirepnet_probe.py:129:            x, y = load_2a_train(str(ROOT / "data/bci_iv_2a/raw/2a_pre"), subject)
+/users/nikkieh/bibm/slurm/v148_smu_common.sh:11:    2a)    printf '%s\n' "$DATA_BASE/bci/2a/2a_pre" ;;
+/users/nikkieh/bibm/slurm/v148_smu_common.sh:12:    2b)    printf '%s\n' "$DATA_BASE/bci/2b/2b_pre" ;;
+/users/nikkieh/bibm/slurm/v148_smu_common.sh:14:    ssvep) printf '%s\n' "$DATA_BASE/sd_ssvep/processed_kaggle_exact" ;;
+/users/nikkieh/bibm/slurm/v149_smu_common.sh:12:    2a)    printf '%s\n' "$DATA_BASE/bci/2a/2a_pre" ;;
+/users/nikkieh/bibm/slurm/v149_smu_common.sh:13:    2b)    printf '%s\n' "$DATA_BASE/bci/2b/2b_pre" ;;
+/users/nikkieh/bibm/slurm/v149_smu_common.sh:15:    ssvep) printf '%s\n' "$DATA_BASE/sd_ssvep/processed_kaggle_exact" ;;
+/users/nikkieh/bibm/slurm/v150_smu_common.sh:12:    2a)    printf '%s\n' "$DATA_BASE/bci/2a/2a_pre" ;;
+/users/nikkieh/bibm/slurm/v150_smu_common.sh:13:    2b)    printf '%s\n' "$DATA_BASE/bci/2b/2b_pre" ;;
+/users/nikkieh/bibm/slurm/v150_smu_common.sh:15:    ssvep) printf '%s\n' "$DATA_BASE/sd_ssvep/processed_kaggle_exact" ;;
+/users/nikkieh/bibm/slurm/v151_smu_common.sh:12:    2a)    printf '%s\n' "$DATA_BASE/bci/2a/2a_pre" ;;
+/users/nikkieh/bibm/slurm/v151_smu_common.sh:13:    2b)    printf '%s\n' "$DATA_BASE/bci/2b/2b_pre" ;;
+/users/nikkieh/bibm/slurm/v151_smu_common.sh:15:    ssvep) printf '%s\n' "$DATA_BASE/sd_ssvep/processed_kaggle_exact" ;;
+/users/nikkieh/bibm/slurm/v152_smu_common.sh:12:    2a)    printf '%s\n' "$DATA_BASE/bci/2a/2a_pre" ;;
+/users/nikkieh/bibm/slurm/v152_smu_common.sh:13:    2b)    printf '%s\n' "$DATA_BASE/bci/2b/2b_pre" ;;
+/users/nikkieh/bibm/slurm/v152_smu_common.sh:15:    ssvep) printf '%s\n' "$DATA_BASE/sd_ssvep/processed_kaggle_exact" ;;
+/users/nikkieh/bibm/slurm/v153_smu_common.sh:8:v153_within_data_root(){ case "$1" in 2a) echo "$DATA_BASE/bci/2a/2a_pre";;2b) echo "$DATA_BASE/bci/2b/2b_pre";;hgd) echo "$DATA_BASE/hgd/processed_bite_repo_exact";;ssvep) echo "$DATA_BASE/sd_ssvep/processed_kaggle_exact";;*) echo "Unknown dataset: $1" >&2;return 2;;esac; }
+/users/nikkieh/bibm/slurm/v154_smu_common.sh:13:  2a) echo "$DATA_BASE/bci/2a/2a_pre";;
+/users/nikkieh/bibm/slurm/v154_smu_common.sh:14:  2b) echo "$DATA_BASE/bci/2b/2b_pre";;
+/users/nikkieh/bibm/slurm/v154_smu_common.sh:16:  ssvep) echo "$DATA_BASE/sd_ssvep/processed_kaggle_exact";;
+/users/nikkieh/bibm/tests/test_cross_spectral_expert.py:50:    """The FIR bank must reproduce the equivalent complex-bandpass recursion.
+/users/nikkieh/bibm/tests/test_cross_spectral_expert.py:193:    # residual: writing the bandpass output of cos(wt + phi + offset) as
+/users/nikkieh/bibm/tests/test_orientation_dynamics_coupling.py:504:        "coordinate_addressed_butterfly_v67_wide", n_ch=22, n_cls=4
+/users/nikkieh/bibm/tests/test_orientation_dynamics_coupling.py:537:def test_v67_butterfly_exchanges_every_coordinate_without_compression():
+/users/nikkieh/bibm/tests/test_orientation_dynamics_coupling.py:560:        "coordinate_addressed_butterfly_v67_wide", n_ch=22, n_cls=4
+/users/nikkieh/bibm/tests/test_orientation_dynamics_coupling.py:584:        "coordinate_addressed_butterfly_v67_plain_pool4_wide",
+/users/nikkieh/bibm/tools/check_data.py:4:    python tools/check_data.py --data-root /external/bci/2a/2a_pre --dataset 2a
+/users/nikkieh/bibm/tools/v155_ssvep_probe.py:431:    ap.add_argument("--data-root", type=Path, default=Path("/lustre/smuexa01/client/users/nikkieh/bibm_data/sd_ssvep/processed_kaggle_exact"))
+/users/nikkieh/bibm/tools/v155_all_dataset_etrca_probe.py:47:    "2a": Path("/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2a/2a_pre"),
+/users/nikkieh/bibm/tools/v155_all_dataset_etrca_probe.py:48:    "2b": Path("/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2b/2b_pre"),
+/users/nikkieh/bibm/tools/v155_all_dataset_etrca_probe.py:50:    "ssvep": Path("/lustre/smuexa01/client/users/nikkieh/bibm_data/sd_ssvep/processed_kaggle_exact"),
+/users/nikkieh/bibm/tools/v156_2b_mi_probe.py:16:* Filtering uses one-pass SOS IIR (sosfilt), not filtfilt, so the feature
+/users/nikkieh/bibm/tools/v156_2b_mi_probe.py:32:from scipy.signal import butter, sosfilt
+/users/nikkieh/bibm/tools/v156_2b_mi_probe.py:50:DATA_ROOT = Path("/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2b/2b_pre")
+/users/nikkieh/bibm/tools/v156_2b_mi_probe.py:73:def bandpass_causal(x: np.ndarray, fs: float, lo: float, hi: float, warmup_s: float) -> np.ndarray:
+/users/nikkieh/bibm/tools/v156_2b_mi_probe.py:76:    sos = butter(4, [lo / ny, hi / ny], btype="bandpass", output="sos")
+/users/nikkieh/bibm/tools/v156_2b_mi_probe.py:77:    y = sosfilt(sos, x, axis=-1)
+/users/nikkieh/bibm/tools/v156_2b_mi_probe.py:169:        xb = bandpass_causal(x, fs, lo, hi, config.get("warmup_s", 0.25))
+/users/nikkieh/bibm/tools/v156_2b_mi_probe.py:192:        xb = bandpass_causal(x, model.fs, lo, hi, model.config.get("warmup_s", 0.25))
+/users/nikkieh/bibm/tools/v157_2b_session_invariant_probe.py:34:* No noncausal filtfilt or full-sequence reversal is used.
+/users/nikkieh/bibm/tools/v157_2b_session_invariant_probe.py:58:DATA_ROOT = Path("/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2b/2b_pre")
+/users/nikkieh/bibm/tools/v158_bitexr_probe.py:57:    '2a': Path('/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2a/2a_pre'),
+/users/nikkieh/bibm/tools/v158_bitexr_probe.py:58:    '2b': Path('/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2b/2b_pre'),
+/users/nikkieh/bibm/tools/v158_bitexr_probe.py:60:    'ssvep': Path('/lustre/smuexa01/client/users/nikkieh/bibm_data/sd_ssvep/processed_kaggle_exact'),
+/users/nikkieh/bibm/tools/v159_multires_xattn_probe.py:57:    '2a': Path('/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2a/2a_pre'),
+/users/nikkieh/bibm/tools/v159_multires_xattn_probe.py:58:    '2b': Path('/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2b/2b_pre'),
+/users/nikkieh/bibm/tools/v159_multires_xattn_probe.py:60:    'ssvep': Path('/lustre/smuexa01/client/users/nikkieh/bibm_data/sd_ssvep/processed_kaggle_exact'),
+/users/nikkieh/bibm/DATA.md:36:└── 2a_pre/   # generated
+/users/nikkieh/bibm/DATA.md:44:  --output     /external/bci/2a/2a_pre
+/users/nikkieh/bibm/DATA.md:57:  --output     /external/bci/2b/2b_pre
+/users/nikkieh/bibm/DATA.md:77:2a_pre/A01T.npz   data: trials x 22 x 1000   label: trials, int 0..3
+/users/nikkieh/bibm/DATA.md:78:2b_pre/B0101T.npz data: trials x  3 x 1000   label: trials, int 0..1
+/users/nikkieh/bibm/DATA.md:133:  --output /external/sd_ssvep/processed_kaggle_exact
+/users/nikkieh/bibm/DATA.md:137:as `[time, channels, trials]`, applies a 0.135 s onset delay, and keeps 256
+/users/nikkieh/bibm/DATA.md:165:├── bci/2a/2a_pre/                     # 2a NPZs
+/users/nikkieh/bibm/DATA.md:166:├── bci/2b/2b_pre/                     # 2b NPZs
+/users/nikkieh/bibm/DATA.md:168:└── sd_ssvep/processed_kaggle_exact/   # S01_train.npz, S01_test.npz, ...
+/users/nikkieh/bibm/DATA.md:174:python tools/check_data.py --data-root /external/bci/2a/2a_pre --dataset 2a
+/users/nikkieh/bibm/DATA_LAYOUT.md:12:/external/path/2a_pre/
+/users/nikkieh/bibm/DATA_LAYOUT.md:30:/external/path/2b_pre/
+/users/nikkieh/bibm/DATA_LAYOUT.md:56:│   └── 2a_pre/    # generated NPZs
+/users/nikkieh/bibm/DATA_LAYOUT.md:60:    └── 2b_pre/    # generated NPZs
+/users/nikkieh/bibm/DATA_LAYOUT.md:70:  --output /external/bci/2a/2a_pre
+/users/nikkieh/bibm/DATA_LAYOUT.md:76:  --output /external/bci/2b/2b_pre
+/users/nikkieh/bibm/REPRODUCE.md:45:python tools/check_data.py --data-root /external/bci/2a/2a_pre --dataset 2a
+/users/nikkieh/bibm/REPRODUCE.md:61:  --subject 1 --data-root /external/bci/2a/2a_pre \
+/users/nikkieh/bibm/REPRODUCE.md:86:    --dataset 2a --subject "$SUBJECT" --data-root /external/bci/2a/2a_pre \
+/users/nikkieh/bibm/REPRODUCE.md:103:| 2a | `2a_pre` | 9 | 600 | `tcnseq_ceilmean_maxnorm_narrow` |
+/users/nikkieh/bibm/REPRODUCE.md:104:| 2b | `2b_pre` | 9 | 600 | `tcnseq_ceilmean_maxnorm_narrow` |
+/users/nikkieh/bibm/REPRODUCE.md:106:| SD-SSVEP | `processed_kaggle_exact` | 10 | 600 | `tcnseq_ceilmean_maxnorm_narrow_pool4` |
+/users/nikkieh/bibm/README_RUN_V148.md:57:/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2a/2a_pre
+/users/nikkieh/bibm/README_RUN_V148.md:58:/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2b/2b_pre
+/users/nikkieh/bibm/README_RUN_V148.md:60:/lustre/smuexa01/client/users/nikkieh/bibm_data/sd_ssvep/processed_kaggle_exact
+/users/nikkieh/bibm/README_RUN_V148.md:89:  --data-root /lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2a/2a_pre \
+/users/nikkieh/bibm/README_RUN_V149.md:49:/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2a/2a_pre
+/users/nikkieh/bibm/README_RUN_V149.md:52:/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2b/2b_pre
+/users/nikkieh/bibm/README_RUN_V149.md:61:/lustre/smuexa01/client/users/nikkieh/bibm_data/sd_ssvep/processed_kaggle_exact
+/users/nikkieh/bibm/README_RUN_V149.md:202:  --data-root /lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2a/2a_pre \
+
+===== FRESH STUDY PREP REFERENCES =====
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/report.py:51:                    prepared_x_hash=result['test_x_hash'],normalizer_hash=result['normalizer_hash'],
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/report.py:190:                author_review=review,requires=['verify prepared-data provenance and historical test exposure disclosure',
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/report.py:220:            for col in ['prepared_x_hash','test_labels_hash','test_ids_hash','normalizer_hash','n_test']:
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/data.py:1:"""Explicit NEW-study reader for the recovered prepared NPZ role layout.
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/data.py:5:StandardScaler. Raw-to-prepared provenance is recorded separately, not inferred.
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/data.py:19: '2a': '/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2a/2a_pre',
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/data.py:20: '2b': '/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2b/2b_pre',
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/data.py:21: 'ssvep': '/lustre/smuexa01/client/users/nikkieh/bibm_data/sd_ssvep/processed_kaggle_exact',
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/data.py:87:    # Exact prepared-array duplicates only; absence does not establish original
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/data.py:90:    if overlap:raise ValueError('Exact prepared EEG trial duplicates across train/test roles: '+str(len(overlap)))
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/data.py:91:    return {'exact_duplicate_trials':0,'scope':'exact prepared-array duplication, not proof of block independence'}
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/run.py:194:    for kind,inp in [('prepared_eeg',real),('synthetic',synthetic)]:
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/run.py:221:                scope='finite prepared-input tests, not verification of raw-signal acquisition/preprocessing')
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/run.py:238:    write_json(directory/'training_data.json',dict(files=train_records,prepared_x_sha256=array_sha(train),
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/run.py:239:        normalizer_hash=normalhash,fit_role='train',id_scope='source filename + prepared row ordinal; not raw-trial provenance',
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/run.py:240:        prepared_stage='existing arrays, first1000 MI samples, no new filtering/alignment'))
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/statistics_base.py:54:        raise ValueError(f"Incomplete or extra paired panel; missing={missing}, extra={extra}. No silent complete-case filtering.")
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/statistics_base.py:59:    # Every comparison must concern the same trials, labels, prepared input and
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/statistics_base.py:62:        for col in ["n_test","test_ids_hash","test_labels_hash","prepared_x_hash","normalizer_hash"]:
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/fresh/setup.py:64:        prepared_data_provenance_reviewed=False,conference_format_checked=False,
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/README.md:18:- 2A: `/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2a/2a_pre`
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/README.md:19:- 2B: `/lustre/smuexa01/client/users/nikkieh/bibm_data/bci/2b/2b_pre`
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/README.md:20:- SSVEP: `/lustre/smuexa01/client/users/nikkieh/bibm_data/sd_ssvep/processed_kaggle_exact`
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/README.md:95:Author details, raw-to-prepared provenance, declared benchmark exposure,
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/docs/PROTOCOL.md:41:The biased classifier is64-to-K. Spatial-filter row norms are projected to <=1,
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/docs/PROTOCOL.md:69:the first 1000 explicitly. SSVEP must contain 256 samples. No resampling/new reference/filter
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/docs/PROTOCOL.md:77:across prepared train/test rows; lack of duplicates is not proof of original
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/docs/PROTOCOL.md:90:prepared-input model boundary. Observation times are relative to the prepared
+/lustre/smuexa01/client/users/nikkieh/reader_fresh_runs/study_20260918T005712Z_qDm6ij/code/docs/PROTOCOL.md:129:4 label-independent prepared examples and4 synthetic inputs. MI boundaries:

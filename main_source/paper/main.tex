@@ -1,0 +1,423 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite,amsmath,amssymb,graphicx,booktabs}
+\usepackage[hidelinks]{hyperref}
+\begin{document}
+\title{READER: Observed-Prefix Reverse Reading for Causal EEG Decoding}
+\input{authors.tex}
+\maketitle
+\begin{abstract}
+EEG decisions made before trial completion require representations that respect
+the available observation boundary. We study READER, which combines a causal
+temporal--spatial front end with forward and reverse temporal convolutional
+readers. Building on an existing forward--reverse readout and fusion design,
+READER recomputes its reverse summary from the observed token prefix. A static
+feature-wise gate combines the latest-token forward state with a start-anchored
+reverse summary. Training uses only the full-trial endpoint objective, and the
+same checkpoint is evaluated at shorter observation lengths.
+\input{abstract_results.tex}
+\end{abstract}
+\begin{IEEEkeywords}
+EEG classification, causal decoding, prefix prediction, temporal convolutional networks, brain--computer interface
+\end{IEEEkeywords}
+
+\section{Introduction}
+Electroencephalography (EEG) provides noninvasive measurements of brain activity
+with high temporal resolution. Deep EEG classifiers combine temporal and spatial
+filtering, attention, and time--frequency representations
+\cite{lawhern2018eegnet,altaheri2022physics,song2022eeg,hong2025bidirectional}.
+In brain--computer interfaces, full-trial classification and decisions during
+acquisition are different evaluation settings: a strong endpoint classifier
+need not perform well when less EEG is available.
+
+Causal temporal convolutions are useful EEG modeling components
+\cite{salami2022eeg}. Causality of one block, however, does not establish that
+preceding feature extraction and the final readout obey the same observation
+boundary. Conversely, reverse-order processing of an already observed segment
+is compatible with a decision at that segment's endpoint. The constraint is
+information availability, not processing direction. A reverse representation
+computed from the complete trial cannot generally be reused unchanged for an
+earlier decision.
+
+Building on BiTE's forward--reverse readout and its released implementation's
+feature-wise fusion \cite{hong2025bidirectional,hong2025bitecode}, READER studies
+a causal tokenizer, repeated reverse encoding of the observed prefix, and
+endpoint-only training. Both readers receive the same observations. The
+hypothesized benefit concerns their different nonlinear processing orders and
+readout anchors, not additional EEG information or a claimed physiological
+mechanism. A forward-only model also supports prefix predictions; therefore,
+checkpoint reuse alone is not evidence for the value of reverse reading.
+
+We evaluate this question in a fresh matched within-subject study on BCICIV-2A,
+BCICIV-2B, and SD-SSVEP. Four architectures share the same front end and training
+recipe: Compact, READER, Forward--Forward (FF), and Compact--Mean. BiTE is
+retrained as a separate endpoint comparator. Existing numerical tables from
+earlier model variants are not combined with the new cohort.
+
+The contributions are: (1) a specified observed-prefix EEG formulation with an
+explicit prepared-input inference boundary; (2) endpoint-trained comparisons at
+identical observation lengths, including capacity and readout controls; and
+(3) finite trained-model causality tests, paired subject-level uncertainty,
+and scoped inference-cost measurements.
+
+\section{Related Work}
+\subsection{Temporal and Bidirectional EEG Decoding}
+EEGNet combines temporal, depthwise spatial, and separable convolutional
+filtering \cite{lawhern2018eegnet}. EEG-ITNet uses inception modules and dilated
+temporal convolutions \cite{salami2022eeg}; ATCNet combines convolution,
+attention, and temporal modeling \cite{altaheri2022physics}. EEG Conformer
+combines local convolutional features with self-attention
+\cite{song2022eeg}. These architectures motivate rich EEG representations,
+but full-segment performance does not characterize their earlier predictions.
+
+BiTE combines temporal and STFT streams, pyramid time--frequency attention,
+and bidirectional temporal convolution \cite{hong2025bidirectional}. Its final
+reverse readout already corresponds to the original first position, and its
+released implementation uses feature-wise sigmoid fusion
+\cite{hong2025bitecode}. READER does not claim these readout anchors or this
+fusion rule as new. It studies their combination with prefix-causal tokenization
+and repeated inference restricted to the available EEG.
+
+Prefix recomputation is also used outside EEG, for example in re-translation for
+simultaneous machine translation \cite{sen2021university}. The present study
+addresses the usefulness of a particular EEG representation rather than
+claiming recomputation as a new general principle.
+
+\subsection{Early and Anytime EEG Decisions}
+Short-window EEG classifiers address decisions from limited observations
+\cite{hong2022deep}. Dynamic stopping instead decides whether to issue an output
+or acquire more evidence \cite{nakanishi2015dynamic,ahmadi2024bayesian}.
+Here, \emph{anytime} denotes evaluating one trained model at several observation
+boundaries. It does not imply calibrated confidence, an optimized stopping
+rule, or a demonstrated acquisition-to-action latency advantage.
+
+An endpoint-trained forward-only checkpoint is the direct comparison for
+READER's reuse setting. A deadline-specific specialist would address a different
+training condition. The current fresh study focuses on matched reused
+checkpoints and does not reuse previously reported specialist or LOSO scores.
+
+\section{Method}
+\label{sec:method}
+\subsection{Architecture and Observation Boundary}
+\begin{figure*}[t]
+\centering
+\includegraphics[width=.94\textwidth]{Fig.png}
+\caption{READER at an observed token prefix. A causal temporal--spatial front
+end produces positioned tokens. The forward reader returns its latest-token
+state; the reverse reader processes only the supplied prefix in reverse and
+returns the state corresponding to original token 1. A static feature-wise
+gate and shared classifier combine the two representations. The classifier is
+supervised only at the full-trial endpoint.}
+\label{fig:reader}
+\end{figure*}
+Let $\mathbf X\in\mathbb R^{C\times T}$ be a prepared EEG input and
+$m\in\{1,\ldots,T\}$ the available sample count. The Reverse-Enabled Anytime
+Decoder for EEG Recognition (READER) contains a causal front end and two
+independently parameterized readers (Fig.~\ref{fig:reader}). Model-level
+causality is defined on the prepared-input timeline; it does not establish
+causality of acquisition or the earlier raw-data preparation.
+
+\subsection{Causal Temporal--Spatial Front End}
+Three stride-one temporal convolutions have kernel lengths 16, 32, and 64,
+16 output maps each, no biases, and zero left padding of $k-1$ samples.
+Concatenation yields 48 temporal carrier maps followed by BatchNorm.
+A bias-free depthwise spatial convolution across all $C$ channels learns two
+filters per carrier, yielding 96 features. BatchNorm and LeakyReLU with slope
+0.2 follow. Each spatial filter's weights are constrained to $\ell_2$ norm 1.
+
+Let $\mathbf u_q\in\mathbb R^{96}$ denote the feature at sample $q$.
+Non-overlapping mean pooling uses width $p=32$ for 2A and 2B and $p=4$
+for SD-SSVEP. Define $N_m=\lceil m/p\rceil$ and $s_j(m)=\min(jp,m)$.
+The pooled token input is
+\begin{equation}
+\bar{\mathbf u}_j^{(m)}=
+\frac{\sum_{q=(j-1)p+1}^{s_j(m)}\mathbf u_q}{s_j(m)-(j-1)p},
+\quad j=1,\ldots,N_m.
+\end{equation}
+Thus, incomplete windows average only observed samples. For $m=1000$, $p=32$,
+the final window contains eight samples. At 250, 500, and 750 samples it
+contains 26, 20, and 14 samples, respectively. A completed token computed from
+a longer input cannot substitute for one of these partial tokens.
+
+Dropout 0.3 precedes a biased linear projection from 96 to 64 dimensions.
+Learned positional vectors, initialized from $\mathcal N(0,0.02^2)$, are added
+at the original trial positions. The table has 32 positions for 2A/2B and 64
+for SD-SSVEP. Write the resulting sequence as
+$\mathbf z_1^{(m)},\ldots,\mathbf z_{N_m}^{(m)}$. For a fixed supplied prefix,
+we omit the superscript and set $t=N_m$. Distinct sample counts can yield
+the same token count but different final-token contents.
+
+\subsection{Forward and Reverse Readers}
+Each reader has three residual TCN blocks with dilations 1, 2, and 4.
+A block has two bias-free depthwise kernel-6 convolutions with zero left
+padding of $5d$ samples. Each convolution is followed by affine BatchNorm,
+LeakyReLU(0.2), and dropout 0.3. The block adds its residual output to its
+input with no subsequent activation. First-convolution weights use Xavier
+uniform initialization; second-convolution weights and BatchNorm offsets are
+zero initially. BatchNorm scales start at one. Blocks therefore begin as
+identity mappings. All BatchNorm layers use $\epsilon=10^{-5}$ and momentum 0.1.
+
+With stride one and fixed evaluation statistics, each reader's theoretical
+receptive field is $R=1+2(6-1)(1+2+4)=71$ tokens. This covers the evaluated
+32- and 64-token sequences; it indicates architectural access, not learned
+use of every token. The forward and reverse summaries are
+\begin{align}
+\mathbf f_t&=[\mathcal F(\mathbf z_1,\ldots,\mathbf z_t)]_t,\\
+\mathbf b_t&=[\mathcal B(\mathbf z_t,\ldots,\mathbf z_1)]_{\mathrm{last}}.
+\end{align}
+Reversal follows positional encoding, preserving original positional vectors.
+The reverse readout is anchored at original token 1 and initially equals
+$\mathbf z_1$. For longer sequences, it is limited to its first-$R$-token
+original-order support. The evaluated formulation therefore concerns bounded
+trial prefixes rather than unrestricted continuously growing histories.
+
+\subsection{Fusion and Controls}
+Following the feature-wise fusion in the released BiTE implementation
+\cite{hong2025bitecode}, a static gate combines the states:
+\begin{equation}
+\mathbf g=\sigma(\mathbf a),\qquad
+\mathbf h_t=(1-\mathbf g)\odot\mathbf f_t+\mathbf g\odot\mathbf b_t.
+\end{equation}
+The 64 gate parameters start at zero; gates start at 0.5 and are shared across
+trials and observation lengths. A biased linear classifier maps $\mathbf h_t$
+to $K$ class logits. Its weight rows have maximum $\ell_2$ norm 0.25.
+Spatial and classifier constraints are projected after optimizer updates.
+Inference for the four controlled models does not mutate these weights.
+
+Compact uses $\mathbf f_t$ without a second reader or gate. FF uses a second
+independent forward TCN and the same fusion rule. Compact--Mean instead uses
+$t^{-1}\sum_{j=1}^{t}[\mathcal F(\mathbf z_1,\ldots,\mathbf z_t)]_j$.
+Its equal-token mean includes the partial final token as one token, and the
+whole model is trained with this readout. Shared parameters initialize
+identically across all four models for each seed. The additional READER and FF
+reader plus gate contains 3,136 parameters. FF controls capacity and fusion,
+but changes direction and readout anchor together, so it does not perfectly
+isolate temporal order from all readout effects.
+
+\subsection{Inference Causality and Cost}
+Let $\Phi_m$ tokenize the supplied $m$ samples and $\mathcal D_\theta$
+include the readers, fusion, and classifier. With dropout disabled and
+BatchNorm statistics fixed,
+\begin{equation}
+\boldsymbol\ell_m(\mathbf X)=\mathcal D_\theta(\Phi_m(\mathbf X_{:,1:m})).
+\end{equation}
+Two prepared inputs equal through $m$ yield the same available sample
+features, pooled tokens, positioned sequences, and logits. Completed tokens
+may also be reused from a longer causal front-end pass. At a partial boundary,
+pooling is recomputed from the available features. Training-time BatchNorm is
+not claimed to implement online learning. Raw preprocessing causality and
+acquisition-to-output delay are outside this argument.
+
+One reverse pass is linear in the available token count for fixed model width
+and depth. Recomputing every growing prefix requires $O(N^2)$ total
+reverse-reader work in this implementation. The independent curve routine
+shares sample features and completed forward states where possible, but does
+not claim constant-cost reverse updates.
+
+\section{Experimental Design}
+\subsection{Data and Frozen Preparation}
+The study includes BCICIV-2A (9 subjects, 22 channels, 4 classes), BCICIV-2B
+(9 subjects, 3 channels, 2 classes), and SD-SSVEP (10 subjects, 8 channels,
+12 classes) \cite{tangermann2012review,nakanishi2015comparison}.
+Prepared 2A and 2B inputs contain 1000 samples at 250 Hz; SSVEP inputs contain
+256 samples at 256 Hz. The original 2A training/evaluation sessions are kept
+separate, and 2B sessions 1--3 and 4--5 form the respective roles.
+SD-SSVEP retains the supplied per-subject training/test artifacts without
+creating a new split. File names, array shapes, retained row ordinals, and
+checksums are recorded. These ordinal identifiers do not independently prove
+original trial/block independence.
+
+The loader reads the existing prepared NPZ arrays, retains the first 1000 MI
+samples when an inclusive endpoint is present, and applies no new band-pass
+filter, rereferencing, or covariance alignment. A separate StandardScaler is
+fitted across training trials at every channel--sample coordinate and then
+applied unchanged to testing. Its means and scales are persisted, and shorter
+prefixes use only the corresponding coordinates. No test-trial statistics
+are fitted. Exact prepared-array duplicates across training/test roles are
+checked; that test does not establish all properties of the earlier preparation.
+All observation durations are relative to the prepared crop, not stimulus
+onset or system latency. The inherited raw-to-prepared provenance requires
+independent documentation; this study's causal claim starts at the prepared
+input.
+
+\subsection{Fresh Matched Training}
+This is a new manuscript-based implementation and refit, not a numerical
+reproduction of previously recovered checkpoints. Prior benchmark outcomes
+informed development; the follow-up does not make those test sets newly
+unseen. The new recipe and observation grid are fixed before the follow-up
+outputs, and no new test-epoch selection is used.
+
+For each subject, seeds 2025, 2026, and 2027 train Compact, READER, FF,
+Compact--Mean, and BiTE: $28\times3\times5=420$ training runs.
+All use 600 epochs, Adam (learning rate 0.002, weight decay 0.002,
+$\beta=(0.9,0.999)$, $\epsilon=10^{-8}$), batch size 64, label smoothing 0.1,
+global gradient-norm clipping at 5, and cosine decay to zero. The final short
+batch is retained; there is no data augmentation or intermediate loss.
+The scheduler advances after each epoch. FP32 is used with TF32 disabled,
+deterministic algorithms requested, and environment metadata recorded.
+
+A separate CPU generator determines the minibatch permutation at epoch $e$
+from seed $k+20000+e$ and its hash is compared across models. Training RNGs
+are reset after construction using $k+10000$. The extra READER/FF branch is
+constructed in an isolated CPU RNG context with fixed seed 918273; it does
+not vary independently across the three seeds. Shared initialization hashes
+are checked. Dropout masks are not claimed to be identical across models.
+Each subject/seed group saves all five final checkpoints before the new
+held-role evaluation. Reloading checks use training examples.
+
+BiTE uses the authors' released class at commit
+\texttt{924eb32241ba1a7c80dbc4ba097f8c979da17578}
+\cite{hong2025bitecode}. Its architecture-specific defaults are retained,
+with temporal/STFT kernel and pooling settings 64/32 for MI and 32/8 for
+SSVEP. Spectral features use magnitude STFT with a Hann window, hop 1,
+centered constant padding, and retained bins specified by the implementation's
+4--40-Hz or 8--64-Hz configuration. BiTE is the full-trial endpoint comparator;
+no unsupported shorter-input behavior is assumed. It is retrained under the
+same optimization recipe, not quoted from the publication.
+
+\subsection{Exact-Duration Evaluation and Uncertainty}
+The four controlled models reuse their own endpoint-trained checkpoints.
+For MI, the primary grid is 256 through 992 samples in steps of 32, augmented
+with 250, 500, 750, and 1000: 28 points covering 1--4 s. SSVEP uses 64 through
+256 samples in steps of 4, covering 0.25--1 s. Inputs are truncated before
+feature extraction; no longer-input final token is substituted.
+
+Accuracy is computed per seed, seeds are averaged within each subject, and
+subjects are averaged within each dataset. Seeds are not prediction ensembles
+or independent participants. We report subject-level SDs and paired
+95\% percentile intervals from 10,000 subject bootstrap samples. Each
+resample retains the corresponding models and all observation lengths.
+Intervals are conditional on the fitted runs and are pointwise, not
+simultaneous bands or multiplicity-adjusted superiority tests.
+
+For each subject, normalized accuracy--duration area is
+\begin{equation}
+Q=\frac{1}{\tau_J-\tau_1}\sum_{j=1}^{J-1}
+(\tau_{j+1}-\tau_j)\frac{\bar A(\tau_j)+\bar A(\tau_{j+1})}{2}.
+\end{equation}
+It retains accuracy units and is not ROC AUC. The primary contrast is
+READER minus Compact on BCICIV-2A over 1--4 s; other datasets and mechanism
+contrasts contextualize the result. No favorable time point is selected
+post hoc as the primary outcome.
+
+\subsection{Causality, Diagnostics, and Timing}
+Every trained controlled-model checkpoint is tested on four label-independent
+prepared examples and four synthetic inputs. The independent full-input
+curve routine is compared with direct truncated inference. Future samples
+are perturbed, repeated and batch-context inference are checked, and second-reader
+input lengths are traced. Partial boundaries are included. Tests are repeated
+on in-memory copies with nonzero randomized temporal paths and reset
+BatchNorm affine/statistical values. Original checkpoints are not modified.
+Maximum absolute logit error must not exceed $10^{-4}$, and a deliberately
+future-dependent positive control must exceed it. The endpoint has no future
+suffix and is not counted as a future-perturbation success.
+
+Supplementary READER diagnostics record gates, state norms, branch similarity,
+and in-prefix interventions. Forward-only and reverse-only predictions using
+the jointly trained head are labelled post-hoc interventions, not trained
+baselines. Gate magnitude alone is not interpreted as feature importance.
+
+Timing uses subject 1/seed 2025 per dataset, batch size one, ten warm-ups,
+50 repetitions, and accelerator synchronization. Median and 95th-percentile
+milliseconds are recorded for one requested prefix and both naïve and
+shared-feature full-curve routines. Inputs are already normalized and on the
+device; BiTE's STFT is included. Disk I/O, transfers, earlier preprocessing,
+and acquisition delay are excluded. Timings are tied to the recorded device,
+not pooled indiscriminately across different GPU types.
+
+\section{Results}
+\subsection{Endpoint Classification}
+\begin{table*}[t]
+\caption{Fresh within-subject endpoint accuracy (\%). Mean $\pm$ SD is across
+seed-averaged subject values; no historical results are mixed in.}
+\centering\small\input{endpoint_table.tex}
+\label{tab:endpoint}
+\end{table*}
+\input{endpoint_results.tex}
+
+\subsection{Matched Prefix and Mechanism Comparisons}
+\begin{table}[t]
+\caption{BCICIV-2A exact-duration accuracy (\%). Each model reuses its own
+endpoint-trained checkpoint. FF is Forward--Forward; C--Mean is Compact--Mean.}
+\centering\scriptsize\setlength{\tabcolsep}{3pt}\input{2a_prefix_table.tex}
+\end{table}
+\input{prefix_results.tex}
+\begin{figure}[t]
+\centering\includegraphics[width=\columnwidth]{2a_reader_minus_compact.png}
+\caption{Paired BCICIV-2A READER--Compact accuracy differences on the fixed
+common grid. Shading gives pointwise 95\% subject-bootstrap intervals,
+not simultaneous confidence bands.}
+\end{figure}
+\begin{table*}[t]
+\caption{READER minus each comparator. Paired mean differences and 95\%
+subject-bootstrap intervals. $Q$ is normalized accuracy--duration area;
+dataset-specific intervals are not pooled.}
+\centering\small\input{mechanism_table.tex}
+\label{tab:mechanism}
+\end{table*}
+The controlled contrasts in Table~\ref{tab:mechanism} evaluate alternative
+capacity and readout explanations. A difference from FF does not by itself
+isolate reversal from its changed anchor. Per-trial predictions are retained in the experiment archive.
+2B and SSVEP curves and all operating points accompany the results.
+
+\subsection{Implementation and Computational Checks}
+\begin{table*}[t]
+\caption{Finite causality-check maxima across the fresh cohort.
+Nondegenerate refers to an in-memory randomized temporal-path copy.
+These are implementation checks, not proof of raw preprocessing causality.}
+\centering\small\input{causality_table.tex}
+\end{table*}
+All required checks for the generated cohort satisfied the stated numerical
+criterion; trace and positive-control outcomes are recorded in the per-run
+reports.
+\begin{table}[t]
+\caption{Parameter counts and measured batch-one inference time for subject 1,
+seed 2025 of each dataset. Times are per-dataset device-specific medians, not
+acquisition latency. Curve times use the shared-feature routine; BiTE is
+measured only at its full-trial endpoint. Devices, 95th percentiles and naive
+recomputation times are retained in the run records.}
+\centering\scriptsize\setlength{\tabcolsep}{2pt}\input{timing_table.tex}
+\end{table}
+Parameter counts and device-specific timing details are provided with the
+reproducibility outputs. The formulation does not claim a constant-cost
+streaming or an acquisition-to-output latency advantage.
+
+\section{Discussion}
+The study examines whether two summaries of the same available EEG improve
+prefix decoding under endpoint-only supervision. Endpoint, prefix, and
+mechanism comparisons answer different questions. Numerical endpoint gains
+alone do not establish improved intermediate decisions. Likewise, availability
+of multiple outputs from one checkpoint is not unique to reverse processing.
+The paired curve-level result and trained controls determine how strongly
+the usefulness of the complete configuration is supported.
+
+\input{mechanism_interpretation.tex}
+
+The FF comparison controls added reader capacity and fusion but changes the
+second readout anchor together with order. Compact--Mean tests an alternative
+forward summary but is not an exhaustive search over forward-only decoders.
+Consequently, the study does not identify a direction-only physiological
+mechanism. Shorter inputs also introduce length and boundary-condition shifts
+relative to endpoint training; their causal role in accuracy changes is not
+separately established by this study.
+
+Subject numbers are small and bootstrap intervals are conditional on the
+observed fitted models. The historical benchmark exposure is disclosed rather
+than treated as a new untouched validation set. Original raw-to-prepared
+provenance and trial/block independence are not inferred from array shapes
+or absence of exact duplicates. Causality checks concern the prepared model
+input; stopping policy, calibration, unrestricted history length, cross-subject
+transfer, and full online deployment are outside the primary evaluation.
+
+\section{Conclusion}
+READER combines a causal EEG tokenizer with forward and observed-prefix reverse
+readers and reuses an endpoint-trained classifier across observation lengths.
+\input{conclusion_results.tex}
+The fresh study compares identical input durations, additional-capacity and
+readout alternatives, subject-level uncertainty, finite causality checks,
+and measured inference costs. Its empirical conclusions concern the complete
+bounded-prefix configuration and must be read with the paired contrasts and
+scope limitations, not as a universal directionality or efficiency advantage.
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+\end{document}

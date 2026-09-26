@@ -1,0 +1,14 @@
+{
+  "author_review": {
+    "author_tex": null
+  },
+  "compiled": true,
+  "errors": [],
+  "requires": [
+    "verify prepared-data provenance and historical test exposure disclosure",
+    "approve author block and final interpretation",
+    "verify venue page limit/anonymization",
+    "visually inspect compiled paper"
+  ],
+  "status": "SYNTHETIC_LAYOUT_ONLY"
+}

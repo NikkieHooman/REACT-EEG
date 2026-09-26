@@ -6,7 +6,15 @@ Research code accompanying the manuscript **REACT-EEG: Reverse-Encoded Anytime C
 
 REACT-EEG classifies EEG at different observation lengths using the same trained checkpoint. It combines a forward temporal reader, summarized at the newest observed token, with an independent reverse reader that processes the observed tokens from newest to oldest. A learned feature-wise gate fuses the two representations before classification.
 
-The main experiment uses endpoint-only training. Separate control experiments investigate temporal direction, readout, input geometry, and matched random-duration training on **BCICIV-2A, BCICIV-2B, and SD-SSVEP**.
+## Model Architecture
+
+<p align="center">
+  <img src="figure.png" alt="REACT-EEG architecture" width="95%">
+</p>
+
+<p align="center">
+  <em>REACT-EEG architecture at observation boundary \(m\). The model processes only the EEG observed up to the requested decision boundary. A causal temporal-spatial front end converts the available EEG into tokens, which are processed by forward and reverse temporal readers and fused through a learned feature-wise gate before classification.</em>
+</p>
 
 ## Repository Structure
 

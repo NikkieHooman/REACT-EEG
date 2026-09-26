@@ -1,0 +1,216 @@
+{
+  "comparisons": [
+    [
+      "reader",
+      "compact"
+    ],
+    [
+      "reader",
+      "ff"
+    ],
+    [
+      "reader",
+      "compact_mean"
+    ]
+  ],
+  "endpoint_only": false,
+  "evidence_tag": "real_fresh",
+  "formal_tests": false,
+  "holm_family": null,
+  "input_csv_sha256": "7f69a29dc82b8360404fb5d4f777998f75568d2c4638802a02dd6c49afce6c9b",
+  "interval": "95% percentile paired subject bootstrap, conditional on observed training runs; pointwise, not simultaneous",
+  "manifest_hash": "244d41a6a2ebe4789cc7f1ce0ecb7af615eb354f912290f8f32846c617117eff",
+  "plan": {
+    "bootstrap_resamples": 10000,
+    "bootstrap_seed": 170926,
+    "comparisons": [
+      [
+        "reader",
+        "compact"
+      ],
+      [
+        "reader",
+        "ff"
+      ],
+      [
+        "reader",
+        "compact_mean"
+      ]
+    ],
+    "datasets": {
+      "2a": {
+        "channels": 22,
+        "classes": 4,
+        "fs": 250,
+        "grid": [
+          250,
+          256,
+          288,
+          320,
+          352,
+          384,
+          416,
+          448,
+          480,
+          500,
+          512,
+          544,
+          576,
+          608,
+          640,
+          672,
+          704,
+          736,
+          750,
+          768,
+          800,
+          832,
+          864,
+          896,
+          928,
+          960,
+          992,
+          1000
+        ],
+        "pool": 32,
+        "samples": 1000,
+        "subjects": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ]
+      },
+      "2b": {
+        "channels": 3,
+        "classes": 2,
+        "fs": 250,
+        "grid": [
+          250,
+          256,
+          288,
+          320,
+          352,
+          384,
+          416,
+          448,
+          480,
+          500,
+          512,
+          544,
+          576,
+          608,
+          640,
+          672,
+          704,
+          736,
+          750,
+          768,
+          800,
+          832,
+          864,
+          896,
+          928,
+          960,
+          992,
+          1000
+        ],
+        "pool": 32,
+        "samples": 1000,
+        "subjects": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ]
+      },
+      "ssvep": {
+        "channels": 8,
+        "classes": 12,
+        "fs": 256,
+        "grid": [
+          64,
+          68,
+          72,
+          76,
+          80,
+          84,
+          88,
+          92,
+          96,
+          100,
+          104,
+          108,
+          112,
+          116,
+          120,
+          124,
+          128,
+          132,
+          136,
+          140,
+          144,
+          148,
+          152,
+          156,
+          160,
+          164,
+          168,
+          172,
+          176,
+          180,
+          184,
+          188,
+          192,
+          196,
+          200,
+          204,
+          208,
+          212,
+          216,
+          220,
+          224,
+          228,
+          232,
+          236,
+          240,
+          244,
+          248,
+          252,
+          256
+        ],
+        "pool": 4,
+        "samples": 256,
+        "subjects": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      }
+    },
+    "seeds": [
+      2025,
+      2026,
+      2027
+    ]
+  },
+  "status": "complete",
+  "test_assumption": "sign exchangeability/symmetry of paired subject differences required"
+}

@@ -53,6 +53,8 @@ REACT-EEG/
 
 The commands below assume this layout. Both source directories contain a package named `fresh`; use the working directories shown rather than adding both packages to `PYTHONPATH` together. The `main_evidence/` records are not required to start a new study.
 
+The documents inside `main_source/` and `anchor_source/` retain archived experiment-development notes. Use this top-level README for current installation and usage instructions. Their `paper/` directories contain earlier report-generation templates. This release covers the primary within-subject experiments and mechanism controls; the separate LOSO and additional endpoint-baseline experiment pipelines are not included.
+
 ## Installation
 
 Use Python **3.11 or later** in an isolated environment. Full training and the GPU preflight require a CUDA-capable GPU; the model example and software tests can run on CPU.
@@ -194,6 +196,7 @@ shutil.copytree(
     repo / "main_source", study / "code",
     ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"),
 )
+shutil.copy2(repo / "figure.png", study / "code/paper/Fig.png")
 sys.path.insert(0, str(study / "code"))
 from fresh import setup
 setup.DEFAULT_ROOTS.update(roots)
@@ -263,7 +266,7 @@ The main trainer supports identity-checked resume from `last.pt`. Held-out data 
 
 **Training configuration:** 600 epochs, batch size 64, Adam with learning rate and weight decay 0.002, betas (0.9, 0.999), epsilon 1e-8, cosine decay to zero, label smoothing 0.1, and gradient clipping at 5. The evaluation checkpoint is the final epoch. Shared components use matched initialization; the second reader uses fixed constructor seed 918273.
 
-**BiTE note:** the exported trainer clips gradients at 5 for BiTE as well. The manuscript describes disabling BiTE clipping. Resolve this difference against the final run provenance before claiming exact reproduction of that baseline.
+**BiTE note:** BiTE uses its released implementation and dataset-specific settings within the shared 600-epoch training framework, with gradient-norm clipping at 5, consistent with the camera-ready paper.
 
 ### 4. Collect Results
 
